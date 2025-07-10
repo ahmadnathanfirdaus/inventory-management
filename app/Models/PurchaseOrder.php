@@ -4,70 +4,81 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseOrder extends Model
 {
     use HasFactory;
 
+    protected $primaryKey = 'po_code';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
-        'order_id',
+        'po_code',
+        'order_code',
         'po_number',
+        'po_date',
+        'manager_code',
         'status',
-        'total_amount',
-        'supplier_info',
-        'expected_delivery_date',
+        'total_estimated',
     ];
 
     protected $casts = [
-        'total_amount' => 'decimal:2',
-        'expected_delivery_date' => 'date',
+        'po_date' => 'date',
+        'total_estimated' => 'integer',
     ];
 
     /**
-     * Generate unique PO number
+     * Get the order request that owns the purchase order.
      */
-    public static function generatePONumber(): string
+    public function orderRequest()
     {
-        return 'PO-' . date('Ymd') . '-' . str_pad(static::count() + 1, 4, '0', STR_PAD_LEFT);
+        return $this->belongsTo(OrderRequest::class, 'order_code', 'order_code');
     }
 
     /**
-     * Order this PO belongs to
+     * Get the manager that created the purchase order.
      */
-    public function order()
+    public function manager()
     {
-        return $this->belongsTo(Order::class);
+        return $this->belongsTo(User::class, 'manager_code', 'user_code');
     }
 
     /**
-     * Goods received for this PO
+     * Get the goods receipts for this purchase order.
      */
-    public function goodsReceived()
+    public function goodsReceipts()
     {
-        return $this->hasMany(GoodsReceived::class);
+        return $this->hasMany(GoodsReceipt::class, 'po_code', 'po_code');
     }
 
     /**
-     * Check if PO is pending
+     * Check if this purchase order has any goods receipts
      */
-    public function isPending(): bool
+    public function hasGoodsReceipts()
     {
-        return $this->status === 'pending';
+        return $this->goodsReceipts()->exists();
     }
 
     /**
-     * Check if PO is completed
+     * Generate next purchase order code with pattern PO0001
      */
-    public function isCompleted(): bool
+    public static function generateNextCode()
     {
-        return $this->status === 'completed';
-    }
+        return DB::transaction(function () {
+            $lastPO = static::lockForUpdate()->orderBy('po_code', 'desc')->first();
 
-    /**
-     * Check if PO is partial
-     */
-    public function isPartial(): bool
-    {
-        return $this->status === 'partial';
+            if (!$lastPO) {
+                return 'PO0001';
+            }
+
+            // Extract number from last code (e.g., PO0001 -> 1)
+            $lastNumber = (int) substr($lastPO->po_code, 2);
+            $nextNumber = $lastNumber + 1;
+
+            // Format with leading zeros
+            return 'PO' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        });
     }
 }

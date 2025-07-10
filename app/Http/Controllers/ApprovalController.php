@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
+use App\Models\OrderRequest;
 use App\Models\PurchaseOrder;
 use App\Models\AuditLog;
 use App\Models\User;
@@ -23,7 +23,7 @@ class ApprovalController extends Controller
      */
     public function index()
     {
-        $orders = Order::with(['creator', 'items'])
+        $orders = OrderRequest::with(['admin', 'orderRequestItems'])
             ->where('status', 'pending')
             ->latest()
             ->paginate(10);
@@ -32,73 +32,77 @@ class ApprovalController extends Controller
     }
 
     /**
-     * Show order details for approval
+     * Display the specified resource for review.
      */
-    public function show(Order $order)
+    public function show(OrderRequest $order)
     {
-        $order->load(['creator', 'items']);
+        $order->load(['admin', 'orderRequestItems.product']);
 
         return view('approvals.show', compact('order'));
     }
 
     /**
-     * Approve an order
+     * Approve the order request.
      */
-    public function approve(Order $order)
+    public function approve(OrderRequest $order)
     {
-        if (!$order->isPending()) {
+        if ($order->status !== 'pending') {
             return redirect()->route('approvals.index')
-                ->with('error', 'Order sudah diproses sebelumnya.');
+                ->with('error', 'Order can only be approved when status is pending.');
         }
 
         DB::beginTransaction();
         try {
             $oldValues = $order->toArray();
 
-            // Update order status
             $order->update([
                 'status' => 'approved',
-                'approved_by' => Auth::id(),
-                'approved_at' => now(),
+                'manager_code' => Auth::user()->user_code,
+                'approval_date' => now()->format('Y-m-d'),
             ]);
 
             // Create Purchase Order
+            $poCode = PurchaseOrder::generateNextCode();
             $purchaseOrder = PurchaseOrder::create([
-                'order_id' => $order->id,
-                'po_number' => PurchaseOrder::generatePONumber(),
-                'total_amount' => $order->getTotalAmount(),
-                'supplier_info' => 'To be filled by procurement team',
-                'expected_delivery_date' => now()->addDays(7),
+                'po_code' => $poCode,
+                'po_number' => $poCode, // Use same value for po_number
+                'order_code' => $order->order_code,
+                'manager_code' => Auth::user()->user_code,
+                'po_date' => now()->format('Y-m-d'),
+                'status' => 'pending',
+                'total_estimated' => $order->getTotalAmount(),
             ]);
 
+            // Log audit
             AuditLog::logAction('approved', $order, $oldValues, $order->fresh()->toArray());
 
             DB::commit();
 
             return redirect()->route('approvals.index')
-                ->with('success', 'Order berhasil disetujui dan PO telah dibuat!');
+                ->with('success', 'Order approved successfully! Purchase Order ' . $purchaseOrder->po_code . ' has been created.');
+
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
-                ->with('error', 'Gagal menyetujui order: ' . $e->getMessage());
+                ->with('error', 'Failed to approve order: ' . $e->getMessage());
         }
     }
 
     /**
-     * Reject an order
+     * Reject the order request.
      */
-    public function reject(Request $request, Order $order)
+    public function reject(Request $request, OrderRequest $order)
     {
         $request->validate([
-            'rejection_note' => 'required|string|max:1000',
+            'rejection_reason' => 'required|string|max:1000'
         ], [
-            'rejection_note.required' => 'Catatan penolakan wajib diisi.',
-            'rejection_note.max' => 'Catatan penolakan maksimal 1000 karakter.',
+            'rejection_reason.required' => 'Alasan penolakan wajib diisi.',
+            'rejection_reason.max' => 'Alasan penolakan maksimal 1000 karakter.'
         ]);
 
-        if (!$order->isPending()) {
+        if ($order->status !== 'pending') {
             return redirect()->route('approvals.index')
-                ->with('error', 'Order sudah diproses sebelumnya.');
+                ->with('error', 'Order can only be rejected when status is pending.');
         }
 
         DB::beginTransaction();
@@ -107,21 +111,22 @@ class ApprovalController extends Controller
 
             $order->update([
                 'status' => 'rejected',
-                'rejection_note' => $request->rejection_note,
-                'approved_by' => Auth::id(),
-                'approved_at' => now(),
+                'manager_code' => Auth::user()->user_code,
+                'rejection_reason' => $request->rejection_reason,
             ]);
 
+            // Log audit
             AuditLog::logAction('rejected', $order, $oldValues, $order->fresh()->toArray());
 
             DB::commit();
 
             return redirect()->route('approvals.index')
-                ->with('success', 'Order berhasil ditolak.');
+                ->with('success', 'Order rejected successfully.');
+
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
-                ->with('error', 'Gagal menolak order: ' . $e->getMessage());
+                ->with('error', 'Failed to reject order: ' . $e->getMessage());
         }
     }
 }

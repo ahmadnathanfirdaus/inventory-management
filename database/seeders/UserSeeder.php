@@ -14,36 +14,40 @@ class UserSeeder extends Seeder
     {
         // Create Admin User
         \App\Models\User::create([
+            'user_code' => 'USR001',
+            'user_name' => 'Admin User',
+            'username' => 'admin',
             'name' => 'Admin User',
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'user_photo' => 'default.jpg',
             'email_verified_at' => now(),
         ]);
 
         // Create Manager User
         \App\Models\User::create([
+            'user_code' => 'USR002',
+            'user_name' => 'Manager User',
+            'username' => 'manager',
             'name' => 'Manager User',
             'email' => 'manager@example.com',
             'password' => bcrypt('password'),
             'role' => 'manager',
+            'user_photo' => 'default.jpg',
             'email_verified_at' => now(),
         ]);
 
-        // Create additional test users
+        // Create Cashier User
         \App\Models\User::create([
-            'name' => 'Ahmad Admin',
-            'email' => 'ahmad@example.com',
+            'user_code' => 'USR003',
+            'user_name' => 'Cashier User',
+            'username' => 'cashier',
+            'name' => 'Cashier User',
+            'email' => 'cashier@example.com',
             'password' => bcrypt('password'),
-            'role' => 'admin',
-            'email_verified_at' => now(),
-        ]);
-
-        \App\Models\User::create([
-            'name' => 'Siti Manager',
-            'email' => 'siti@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'manager',
+            'role' => 'cashier',
+            'user_photo' => 'default.jpg',
             'email_verified_at' => now(),
         ]);
     }

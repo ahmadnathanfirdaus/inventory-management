@@ -12,7 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->enum('role', ['admin', 'manager'])->default('admin');
+            // Add custom user code
+            $table->string('user_code', 7)->unique()->after('id');
+            $table->string('user_name', 20)->after('user_code');
+            $table->string('username', 25)->unique()->after('user_name');
+            $table->string('user_photo', 50)->nullable()->after('username');
+            $table->enum('role', ['admin', 'cashier', 'manager'])->default('admin')->after('user_photo');
+
+            // Keep original fields for Laravel compatibility
+            $table->string('name')->change();
+            $table->string('email')->change();
         });
     }
 
@@ -22,7 +31,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('role');
+            $table->dropColumn(['user_code', 'user_name', 'username', 'user_photo', 'role']);
         });
     }
 };

@@ -26,10 +26,11 @@ class OrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'order_date' => 'required|date|before_or_equal:today',
             'description' => 'required|string|max:1000',
             'items' => 'required|array|min:1',
-            'items.*.item_name' => 'required|string|max:255',
-            'items.*.description' => 'nullable|string|max:500',
+            'items.*.product_code' => 'required|string|exists:products,product_code',
+            'items.*.distributor_code' => 'nullable|string|exists:distributors,distributor_code',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
         ];
@@ -41,9 +42,14 @@ class OrderRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'order_date.required' => 'Tanggal order wajib diisi.',
+            'order_date.date' => 'Format tanggal tidak valid.',
+            'order_date.before_or_equal' => 'Tanggal order tidak boleh lebih dari hari ini.',
             'description.required' => 'Deskripsi order wajib diisi.',
             'items.required' => 'Minimal harus ada 1 item.',
-            'items.*.item_name.required' => 'Nama item wajib diisi.',
+            'items.*.product_code.required' => 'Produk wajib dipilih.',
+            'items.*.product_code.exists' => 'Produk yang dipilih tidak valid.',
+            'items.*.distributor_code.exists' => 'Distributor yang dipilih tidak valid.',
             'items.*.quantity.required' => 'Jumlah item wajib diisi.',
             'items.*.quantity.min' => 'Jumlah item minimal 1.',
             'items.*.unit_price.required' => 'Harga satuan wajib diisi.',

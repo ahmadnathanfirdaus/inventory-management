@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\OrderRequest;
-use App\Models\Order;
-use App\Models\OrderItem;
+use App\Http\Requests\OrderRequest as OrderRequestValidation;
+use App\Models\OrderRequest;
+use App\Models\OrderRequestItem;
+use App\Models\Product;
+use App\Models\Distributor;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -24,8 +26,8 @@ class OrderController extends Controller
      */
     public function index()
     {
-        $orders = Order::with(['creator', 'items', 'approver'])
-            ->where('created_by', Auth::id())
+        $orders = OrderRequest::with(['admin', 'orderRequestItems'])
+            ->where('admin_code', Auth::user()->user_code)
             ->latest()
             ->paginate(10);
 
@@ -37,34 +39,55 @@ class OrderController extends Controller
      */
     public function create()
     {
-        return view('orders.create');
+        $nextCode = OrderRequest::generateNextCode();
+        $products = Product::with(['brand', 'distributor'])
+                           ->where('stock_quantity', '>', 0)
+                           ->orderBy('product_name')
+                           ->get();
+        $distributors = Distributor::orderBy('distributor_name')->get();
+
+        return view('orders.create', compact('nextCode', 'products', 'distributors'));
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(OrderRequest $request)
+    public function store(OrderRequestValidation $request)
     {
         DB::beginTransaction();
         try {
-            $order = Order::create([
-                'order_number' => Order::generateOrderNumber(),
-                'description' => $request->description,
-                'created_by' => Auth::id(),
+            // Auto-generate order code baru untuk handle race condition
+            do {
+                $orderCode = OrderRequest::generateNextCode();
+                $exists = OrderRequest::where('order_code', $orderCode)->exists();
+            } while ($exists);
+
+            $order = OrderRequest::create([
+                'order_code' => $orderCode,
+                'order_date' => $request->order_date ?: now()->format('Y-m-d'), // Gunakan input user atau default ke hari ini
+                'notes' => $request->description, // Fix: gunakan 'notes' sesuai schema database
+                'admin_code' => Auth::user()->user_code, // Fix: tambah admin_code
+                'status' => 'pending',
             ]);
 
             foreach ($request->items as $item) {
-                $orderItem = OrderItem::create([
-                    'order_id' => $order->id,
-                    'item_name' => $item['item_name'],
-                    'description' => $item['description'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $item['quantity'] * $item['unit_price'],
+                // Get product details to extract brand code
+                $product = Product::find($item['product_code']);
+
+                // Generate unique order item code
+                $orderItemCode = OrderRequestItem::generateNextCode();
+
+                OrderRequestItem::create([
+                    'order_item_code' => $orderItemCode,
+                    'order_code' => $order->order_code,
+                    'product_code' => $item['product_code'],
+                    'brand_code' => $product->brand_code,
+                    'distributor_code' => $item['distributor_code'] ?? $product->distributor_code, // Use form input or product default
+                    'order_quantity' => $item['quantity'],
+                    'estimated_price' => $item['unit_price'] * $item['quantity'],
+                    'notes' => $item['notes'] ?? null,
                 ]);
             }
-
-            AuditLog::logAction('created', $order, null, $order->toArray());
 
             DB::commit();
 
@@ -81,9 +104,9 @@ class OrderController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Order $order)
+    public function show(OrderRequest $order)
     {
-        $order->load(['creator', 'items', 'approver', 'purchaseOrder']);
+        $order->load(['admin', 'manager', 'orderRequestItems.product']);
 
         return view('orders.show', compact('order'));
     }
@@ -91,51 +114,46 @@ class OrderController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Order $order)
+    public function edit(OrderRequest $order)
     {
-        if (!$order->isPending()) {
+        if ($order->status !== 'pending') {
             return redirect()->route('orders.index')
                 ->with('error', 'Order yang sudah diproses tidak dapat diedit.');
         }
 
-        $order->load('items');
+        $order->load('orderRequestItems');
         return view('orders.edit', compact('order'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(OrderRequest $request, Order $order)
+    public function update(Request $request, OrderRequest $order)
     {
-        if (!$order->isPending()) {
+        if ($order->status !== 'pending') {
             return redirect()->route('orders.index')
                 ->with('error', 'Order yang sudah diproses tidak dapat diedit.');
         }
 
         DB::beginTransaction();
         try {
-            $oldValues = $order->toArray();
-
             $order->update([
                 'description' => $request->description,
             ]);
 
             // Delete existing items
-            $order->items()->delete();
+            $order->orderRequestItems()->delete();
 
             // Create new items
             foreach ($request->items as $item) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'item_name' => $item['item_name'],
-                    'description' => $item['description'] ?? null,
+                OrderRequestItem::create([
+                    'order_code' => $order->order_code,
+                    'product_code' => $item['product_code'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'total_price' => $item['quantity'] * $item['unit_price'],
                 ]);
             }
-
-            AuditLog::logAction('updated', $order, $oldValues, $order->fresh()->toArray());
 
             DB::commit();
 
@@ -152,19 +170,15 @@ class OrderController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Order $order)
+    public function destroy(OrderRequest $order)
     {
-        if (!$order->isPending()) {
+        if ($order->status !== 'pending') {
             return redirect()->route('orders.index')
                 ->with('error', 'Order yang sudah diproses tidak dapat dihapus.');
         }
 
         DB::beginTransaction();
         try {
-            $oldValues = $order->toArray();
-
-            AuditLog::logAction('deleted', $order, $oldValues, null);
-
             $order->delete();
 
             DB::commit();

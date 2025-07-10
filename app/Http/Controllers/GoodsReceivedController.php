@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\GoodsReceivedRequest;
-use App\Models\GoodsReceived;
+use App\Http\Requests\GoodsReceiptRequest;
+use App\Models\GoodsReceipt;
+use App\Models\OrderRequest;
 use App\Models\PurchaseOrder;
+use App\Models\Product;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -24,7 +26,7 @@ class GoodsReceivedController extends Controller
      */
     public function index()
     {
-        $goodsReceived = GoodsReceived::with(['purchaseOrder.order', 'orderItem', 'receiver'])
+        $goodsReceived = GoodsReceipt::with(['purchaseOrder.orderRequest.admin', 'admin', 'product'])
             ->latest()
             ->paginate(10);
 
@@ -36,55 +38,71 @@ class GoodsReceivedController extends Controller
      */
     public function create()
     {
-        $purchaseOrders = PurchaseOrder::with(['order.items'])
-            ->whereIn('status', ['pending', 'partial'])
-            ->get();
-
-        return view('goods-received.create', compact('purchaseOrders'));
+        return view('goods-received.create');
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(GoodsReceivedRequest $request)
+    public function store(Request $request)
     {
+        $request->validate([
+            'order_code' => [
+                'required',
+                'exists:order_requests,order_code',
+                function ($attribute, $value, $fail) {
+                    $orderRequest = OrderRequest::where('order_code', $value)->first();
+                    if ($orderRequest && $orderRequest->hasGoodsReceipts()) {
+                        $fail('Order ini sudah memiliki goods receipt. Tidak dapat diinput kembali.');
+                    }
+                }
+            ],
+            'items' => 'required|array',
+            'items.*.product_code' => 'required|exists:products,product_code',
+            'items.*.quantity_received' => 'required|integer|min:0',
+            'items.*.status' => 'required|in:complete,partial,damaged',
+        ]);
+
         DB::beginTransaction();
         try {
-            $purchaseOrder = PurchaseOrder::where('po_number', $request->po_number)->first();
+            $order = OrderRequest::with('orderRequestItems')->where('order_code', $request->order_code)->first();
 
-            foreach ($request->items as $item) {
-                $orderItem = $purchaseOrder->order->items()->find($item['order_item_id']);
+            // Find the related purchase order
+            $purchaseOrder = PurchaseOrder::where('order_code', $order->order_code)->first();
 
-                $quantityShortage = $orderItem->quantity - $item['quantity_received'];
-                $status = $quantityShortage > 0 ? 'incomplete' : 'complete';
-
-                if ($item['quantity_received'] != $orderItem->quantity) {
-                    $status = 'adjusted';
-                }
-
-                $goodsReceived = GoodsReceived::create([
-                    'purchase_order_id' => $purchaseOrder->id,
-                    'order_item_id' => $item['order_item_id'],
-                    'item_name' => $orderItem->item_name,
-                    'quantity_ordered' => $orderItem->quantity,
-                    'quantity_received' => $item['quantity_received'],
-                    'quantity_shortage' => $quantityShortage,
-                    'status' => $status,
-                    'notes' => $item['notes'] ?? null,
-                    'received_by' => Auth::id(),
-                    'received_at' => now(),
-                ]);
-
-                AuditLog::logAction('created', $goodsReceived, null, $goodsReceived->toArray());
+            if (!$purchaseOrder) {
+                throw new \Exception('Purchase Order not found for this order. Please ensure the order is properly approved.');
             }
 
-            // Update PO status
-            $this->updatePurchaseOrderStatus($purchaseOrder);
+            foreach ($request->items as $item) {
+                // Find the corresponding order item to get the estimated price
+                $orderItem = $order->orderRequestItems->where('product_code', $item['product_code'])->first();
+
+                // Create goods receipt record
+                $goodsReceived = GoodsReceipt::create([
+                    'receipt_code' => GoodsReceipt::generateNextCode(),
+                    'po_code' => $purchaseOrder->po_code,
+                    'product_code' => $item['product_code'],
+                    'received_quantity' => $item['quantity_received'],
+                    'actual_price' => $orderItem ? $orderItem->estimated_price : 0,
+                    'received_date' => now()->format('Y-m-d'),
+                    'admin_code' => Auth::user()->user_code,
+                    'notes' => 'Status: ' . $item['status'],
+                ]);
+
+                // Update product stock automatically
+                if ($item['status'] !== 'damaged') {
+                    $product = Product::where('product_code', $item['product_code'])->first();
+                    if ($product) {
+                        $product->increment('stock_quantity', $item['quantity_received']);
+                    }
+                }
+            }
 
             DB::commit();
 
             return redirect()->route('goods-received.index')
-                ->with('success', 'Barang berhasil diterima dan dicatat!');
+                ->with('success', 'Barang berhasil diterima dan stock telah diperbarui!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
@@ -96,9 +114,9 @@ class GoodsReceivedController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(GoodsReceived $goodsReceived)
+    public function show(GoodsReceipt $goodsReceived)
     {
-        $goodsReceived->load(['purchaseOrder.order', 'orderItem', 'receiver']);
+        $goodsReceived->load(['purchaseOrder.orderRequest', 'product', 'receiver']);
 
         return view('goods-received.show', compact('goodsReceived'));
     }
@@ -106,9 +124,9 @@ class GoodsReceivedController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(GoodsReceived $goodsReceived)
+    public function edit(GoodsReceipt $goodsReceived)
     {
-        $goodsReceived->load(['purchaseOrder.order', 'orderItem']);
+        $goodsReceived->load(['purchaseOrder.orderRequest', 'product']);
 
         return view('goods-received.edit', compact('goodsReceived'));
     }
@@ -116,7 +134,7 @@ class GoodsReceivedController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, GoodsReceived $goodsReceived)
+    public function update(Request $request, GoodsReceipt $goodsReceived)
     {
         $request->validate([
             'quantity_received' => 'required|integer|min:0',
@@ -161,14 +179,11 @@ class GoodsReceivedController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(GoodsReceived $goodsReceived)
+    public function destroy(GoodsReceipt $goodsReceived)
     {
         DB::beginTransaction();
         try {
-            $oldValues = $goodsReceived->toArray();
             $purchaseOrder = $goodsReceived->purchaseOrder;
-
-            AuditLog::logAction('deleted', $goodsReceived, $oldValues, null);
 
             $goodsReceived->delete();
 
@@ -187,25 +202,41 @@ class GoodsReceivedController extends Controller
     }
 
     /**
-     * Get PO details for AJAX
+     * Get Order details for AJAX
      */
-    public function getPODetails(Request $request)
+    public function getOrderDetails(Request $request)
     {
         $request->validate([
-            'po_number' => 'required|string|exists:purchase_orders,po_number',
+            'order_code' => 'required|string|exists:order_requests,order_code',
         ]);
 
-        $purchaseOrder = PurchaseOrder::with(['order.items'])
-            ->where('po_number', $request->po_number)
+        $order = OrderRequest::with(['orderRequestItems.product', 'admin', 'purchaseOrder'])
+            ->where('order_code', trim($request->order_code))
+            ->whereRaw('LOWER(status) = ?', ['approved'])
             ->first();
 
-        if (!$purchaseOrder) {
-            return response()->json(['error' => 'PO not found'], 404);
+        if (!$order) {
+            return response()->json(['error' => 'Order not found or not approved'], 404);
+        }
+
+        // Check if order already has goods receipts
+        if ($order->hasGoodsReceipts()) {
+            return response()->json([
+                'error' => 'Order ini sudah memiliki goods receipt dan tidak dapat diinput kembali.'
+            ], 422);
+        }
+
+        // Check if order has purchase order
+        if (!$order->purchaseOrder) {
+            return response()->json([
+                'error' => 'Order ini belum memiliki Purchase Order. Pastikan order sudah disetujui oleh manager.'
+            ], 422);
         }
 
         return response()->json([
-            'po' => $purchaseOrder,
-            'items' => $purchaseOrder->order->items,
+            'order' => $order,
+            'items' => $order->orderRequestItems,
+            'purchase_order' => $order->purchaseOrder,
         ]);
     }
 
@@ -214,9 +245,9 @@ class GoodsReceivedController extends Controller
      */
     private function updatePurchaseOrderStatus(PurchaseOrder $purchaseOrder)
     {
-        $totalItems = $purchaseOrder->order->items->count();
-        $receivedItems = GoodsReceived::where('purchase_order_id', $purchaseOrder->id)->count();
-        $completeItems = GoodsReceived::where('purchase_order_id', $purchaseOrder->id)
+        $totalItems = $purchaseOrder->orderRequest->orderRequestItems->count();
+        $receivedItems = GoodsReceipt::where('po_code', $purchaseOrder->po_code)->count();
+        $completeItems = GoodsReceipt::where('po_code', $purchaseOrder->po_code)
             ->where('status', 'complete')
             ->count();
 
@@ -229,5 +260,37 @@ class GoodsReceivedController extends Controller
         }
 
         $purchaseOrder->update(['status' => $status]);
+    }
+
+    /**
+     * API method to get available orders (without goods receipts)
+     */
+    public function getAvailableOrders()
+    {
+        try {
+            $orders = OrderRequest::with(['admin', 'purchaseOrder'])
+                ->withoutGoodsReceipts()
+                ->where('status', 'approved')
+                ->whereHas('purchaseOrder')
+                ->latest()
+                ->take(20)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'orders' => $orders->map(function ($order) {
+                    return [
+                        'order_code' => $order->order_code,
+                        'order_date' => $order->order_date->format('d/m/Y'),
+                        'admin' => $order->admin->name,
+                        'po_code' => $order->purchaseOrder->po_code,
+                        'po_number' => $order->purchaseOrder->po_number,
+                    ];
+                })
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
     }
 }

@@ -50,7 +50,7 @@ class AuditLog extends Model
         static::create([
             'action' => $action,
             'auditable_type' => get_class($model),
-            'auditable_id' => $model->id,
+            'auditable_id' => $model->getKey(), // Use getKey() instead of id to get correct primary key
             'old_values' => $oldValues,
             'new_values' => $newValues,
             'user_id' => Auth::id(),
