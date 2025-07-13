@@ -46,7 +46,7 @@
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Total Amount</dt>
-                        <dd class="mt-1 text-sm text-gray-900 font-semibold">${{ number_format($order->total_amount, 2) }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900 font-semibold">Rp {{ number_format($order->getTotalAmount(), 0, ',', '.') }}</dd>
                     </div>
                 </dl>
             </div>

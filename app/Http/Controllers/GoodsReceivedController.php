@@ -116,64 +116,9 @@ class GoodsReceivedController extends Controller
      */
     public function show(GoodsReceipt $goodsReceived)
     {
-        $goodsReceived->load(['purchaseOrder.orderRequest', 'product', 'receiver']);
+        $goodsReceived->load(['purchaseOrder.orderRequest', 'product', 'admin']);
 
         return view('goods-received.show', compact('goodsReceived'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(GoodsReceipt $goodsReceived)
-    {
-        $goodsReceived->load(['purchaseOrder.orderRequest', 'product']);
-
-        return view('goods-received.edit', compact('goodsReceived'));
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, GoodsReceipt $goodsReceived)
-    {
-        $request->validate([
-            'quantity_received' => 'required|integer|min:0',
-            'notes' => 'nullable|string|max:500',
-        ]);
-
-        DB::beginTransaction();
-        try {
-            $oldValues = $goodsReceived->toArray();
-
-            $quantityShortage = $goodsReceived->quantity_ordered - $request->quantity_received;
-            $status = $quantityShortage > 0 ? 'incomplete' : 'complete';
-
-            if ($request->quantity_received != $goodsReceived->quantity_ordered) {
-                $status = 'adjusted';
-            }
-
-            $goodsReceived->update([
-                'quantity_received' => $request->quantity_received,
-                'quantity_shortage' => $quantityShortage,
-                'status' => $status,
-                'notes' => $request->notes,
-            ]);
-
-            AuditLog::logAction('updated', $goodsReceived, $oldValues, $goodsReceived->fresh()->toArray());
-
-            // Update PO status
-            $this->updatePurchaseOrderStatus($goodsReceived->purchaseOrder);
-
-            DB::commit();
-
-            return redirect()->route('goods-received.index')
-                ->with('success', 'Data penerimaan barang berhasil diperbarui!');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Gagal memperbarui data: ' . $e->getMessage())
-                ->withInput();
-        }
     }
 
     /**

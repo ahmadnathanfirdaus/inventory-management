@@ -6,7 +6,7 @@
 <div class="bg-white rounded-lg shadow-sm">
     <div class="p-6 border-b border-gray-200">
         <h1 class="text-2xl font-semibold text-gray-900">Approval Management</h1>
-        <p class="text-sm text-gray-600 mt-1">Review and approve pending orders</p>
+        <p class="text-sm text-gray-600 mt-1">Review and approve pending approvals</p>
     </div>
 
     <div class="p-6">

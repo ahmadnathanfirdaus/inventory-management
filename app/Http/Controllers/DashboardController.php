@@ -36,11 +36,11 @@ class DashboardController extends Controller
     {
         $stats = [
             'total_orders' => OrderRequest::count(),
-            'pending_orders' => OrderRequest::where('status', 'Pending')->count(),
-            'approved_orders' => OrderRequest::where('status', 'Approved')->count(),
-            'rejected_orders' => OrderRequest::where('status', 'Rejected')->count(),
+            'pending_orders' => OrderRequest::where('status', 'pending')->count(),
+            'approved_orders' => OrderRequest::where('status', 'approved')->count(),
+            'rejected_orders' => OrderRequest::where('status', 'rejected')->count(),
             'total_pos' => PurchaseOrder::count(),
-            'pending_pos' => PurchaseOrder::where('status', 'Pending')->count(),
+            'pending_pos' => PurchaseOrder::where('status', 'printed')->count(),
             'goods_received' => GoodsReceipt::count(),
             'total_products' => Product::count(),
             'total_brands' => Brand::count(),
@@ -63,16 +63,16 @@ class DashboardController extends Controller
     private function managerDashboard()
     {
         $stats = [
-            'pending_approvals' => OrderRequest::where('status', 'Pending')->count(),
-            'approved_today' => OrderRequest::where('status', 'Approved')
+            'pending_approvals' => OrderRequest::where('status', 'pending')->count(),
+            'approved_today' => OrderRequest::where('status', 'approved')
                 ->whereDate('updated_at', today())
                 ->count(),
-            'total_approved' => OrderRequest::where('status', 'Approved')->count(),
-            'total_rejected' => OrderRequest::where('status', 'Rejected')->count(),
+            'total_approved' => OrderRequest::where('status', 'approved')->count(),
+            'total_rejected' => OrderRequest::where('status', 'rejected')->count(),
         ];
 
-        $pending_orders = OrderRequest::with(['admin'])
-            ->where('status', 'Pending')
+        $pending_orders = OrderRequest::with(['admin', 'orderRequestItems'])
+            ->where('status', 'pending')
             ->latest()
             ->take(10)
             ->get();

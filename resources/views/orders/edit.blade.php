@@ -58,7 +58,7 @@
                 </div>
 
                 <div id="orderItems">
-                    @foreach($order->items as $index => $item)
+                    @forelse($order->items ?? [] as $index => $item)
                     <div class="order-item border rounded-lg p-4 mb-4">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
@@ -84,7 +84,11 @@
                             </div>
                         </div>
                     </div>
-                    @endforeach
+                    @empty
+                    <div class="text-center py-8">
+                        <p class="text-gray-500">No items found. Click "Add Item" to create a new item.</p>
+                    </div>
+                    @endforelse
                 </div>
             </div>
 
@@ -102,7 +106,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let itemIndex = {{ $order->items->count() }};
+    let itemIndex = {{ ($order->items ?? collect())->count() }};
 
     // Add new item
     document.getElementById('addItem').addEventListener('click', function() {

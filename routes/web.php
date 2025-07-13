@@ -28,7 +28,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('orders', OrderController::class);
 
     // Goods received management
-    Route::resource('goods-received', GoodsReceivedController::class);
+    Route::resource('goods-received', GoodsReceivedController::class)->except(['edit', 'update']);
     Route::post('api/goods-received/get-order-details', [GoodsReceivedController::class, 'getOrderDetails'])
         ->name('goods-received.get-order-details');
     Route::get('api/goods-received/po-details', [GoodsReceivedController::class, 'getPODetails'])

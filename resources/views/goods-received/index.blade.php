@@ -60,9 +60,6 @@
                                 <a href="{{ route('goods-received.show', $receipt) }}" class="text-blue-600 hover:text-blue-900 mr-3">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="{{ route('goods-received.edit', $receipt) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">
-                                    <i class="fas fa-edit"></i>
-                                </a>
                                 <form action="{{ route('goods-received.destroy', $receipt) }}" method="POST" class="inline">
                                     @csrf
                                     @method('DELETE')

@@ -6,11 +6,8 @@
 <div class="bg-white rounded-lg shadow-sm">
     <div class="p-6 border-b border-gray-200">
         <div class="flex justify-between items-center">
-            <h1 class="text-2xl font-semibold text-gray-900">Goods Received #{{ $goodsReceived->id }}</h1>
+            <h1 class="text-2xl font-semibold text-gray-900">Goods Received #{{ $goodsReceived->receipt_code }}</h1>
             <div class="flex space-x-2">
-                <a href="{{ route('goods-received.edit', $goodsReceived) }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium">
-                    <i class="fas fa-edit mr-2"></i>Edit
-                </a>
                 <a href="{{ route('goods-received.index') }}" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md font-medium">
                     <i class="fas fa-arrow-left mr-2"></i>Back
                 </a>
@@ -25,23 +22,27 @@
                 <dl class="space-y-3">
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Purchase Order</dt>
-                        <dd class="mt-1 text-sm text-gray-900">#{{ $goodsReceived->purchase_order_id }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">#{{ $goodsReceived->po_code }}</dd>
                     </div>
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">Supplier</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->supplier }}</dd>
+                        <dt class="text-sm font-medium text-gray-500">Product</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->product->product_name ?? $goodsReceived->product_code }}</dd>
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Received Date</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->received_at ? $goodsReceived->received_at->format('M d, Y') : 'Not Set' }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->received_date ? $goodsReceived->received_date->format('M d, Y') : 'Not Set' }}</dd>
                     </div>
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">Invoice Number</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->invoice_number ?: 'N/A' }}</dd>
+                        <dt class="text-sm font-medium text-gray-500">Received Quantity</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ number_format($goodsReceived->received_quantity) }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Unit Price</dt>
+                        <dd class="mt-1 text-sm text-gray-900">Rp {{ number_format($goodsReceived->actual_price, 0, ',', '.') }}</dd>
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Total Value</dt>
-                        <dd class="mt-1 text-sm text-gray-900 font-semibold">${{ number_format($goodsReceived->total_value, 2) }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900 font-semibold">Rp {{ number_format($goodsReceived->actual_price * $goodsReceived->received_quantity, 0, ',', '.') }}</dd>
                     </div>
                 </dl>
             </div>
@@ -51,7 +52,7 @@
                 <dl class="space-y-3">
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Received By</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->receiver->name }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">{{ $goodsReceived->admin->name ?? 'Unknown' }}</dd>
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Recorded At</dt>
@@ -72,13 +73,16 @@
         </div>
 
         <div class="mb-8">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Received Items</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Received Item Details</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Item Name
+                                Product Code
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Product Name
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Quantity Received
@@ -87,40 +91,28 @@
                                 Unit Price
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Condition
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Total Value
                             </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        @foreach($goodsReceived->items as $item)
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ $item->name }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ $item->quantity_received }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    ${{ number_format($item->unit_price, 2) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                        @if($item->condition === 'good') bg-green-100 text-green-800
-                                        @elseif($item->condition === 'damaged') bg-red-100 text-red-800
-                                        @elseif($item->condition === 'partial') bg-yellow-100 text-yellow-800
-                                        @else bg-gray-100 text-gray-800
-                                        @endif">
-                                        {{ ucfirst($item->condition) }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    ${{ number_format($item->total_value, 2) }}
-                                </td>
-                            </tr>
-                        @endforeach
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {{ $goodsReceived->product_code }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ $goodsReceived->product->product_name ?? 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ number_format($goodsReceived->received_quantity) }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                Rp {{ number_format($goodsReceived->actual_price, 0, ',', '.') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                Rp {{ number_format($goodsReceived->actual_price * $goodsReceived->received_quantity, 0, ',', '.') }}
+                            </td>
+                        </tr>
                     </tbody>
                     <tfoot class="bg-gray-50">
                         <tr>
@@ -128,7 +120,7 @@
                                 Total Value:
                             </th>
                             <th class="px-6 py-3 text-left text-sm font-medium text-gray-900">
-                                ${{ number_format($goodsReceived->total_value, 2) }}
+                                Rp {{ number_format($goodsReceived->actual_price * $goodsReceived->received_quantity, 0, ',', '.') }}
                             </th>
                         </tr>
                     </tfoot>
