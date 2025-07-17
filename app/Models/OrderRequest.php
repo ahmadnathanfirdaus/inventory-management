@@ -104,10 +104,71 @@ class OrderRequest extends Model
     }
 
     /**
-     * Scope to get orders that don't have goods receipts yet
+     * Check if this order request is fully received
+     */
+    public function isFullyReceived()
+    {
+        if (!$this->purchaseOrder) {
+            return false;
+        }
+
+        $totalOrderQuantity = $this->orderRequestItems->sum('order_quantity');
+        $totalReceivedQuantity = $this->purchaseOrder->goodsReceipts->sum('received_quantity');
+
+        return $totalReceivedQuantity >= $totalOrderQuantity;
+    }
+
+    /**
+     * Get remaining quantities for partially received orders
+     */
+    public function getRemainingQuantities()
+    {
+        if (!$this->purchaseOrder) {
+            return [];
+        }
+
+        // Get all received quantities by product code
+        $receivedQuantities = [];
+        foreach ($this->purchaseOrder->goodsReceipts as $receipt) {
+            $productCode = $receipt->product_code;
+            if (!isset($receivedQuantities[$productCode])) {
+                $receivedQuantities[$productCode] = 0;
+            }
+            $receivedQuantities[$productCode] += $receipt->received_quantity;
+        }
+
+        // Calculate remaining quantities
+        $remainingQuantities = [];
+        foreach ($this->orderRequestItems as $item) {
+            $received = $receivedQuantities[$item->product_code] ?? 0;
+            $remaining = $item->order_quantity - $received;
+
+            // Always include the product in the result, even if remaining is 0
+            $remainingQuantities[$item->product_code] = [
+                'ordered' => $item->order_quantity,
+                'received' => $received,
+                'remaining' => max(0, $remaining), // Ensure remaining is never negative
+            ];
+        }
+
+        return $remainingQuantities;
+    }
+
+    /**
+     * Scope to get orders that are not fully received yet
      */
     public function scopeWithoutGoodsReceipts($query)
     {
-        return $query->whereDoesntHave('purchaseOrder.goodsReceipts');
+        return $query->whereHas('purchaseOrder')
+            ->where('status', 'approved')
+            ->where(function ($subQuery) {
+                $subQuery->whereDoesntHave('purchaseOrder.goodsReceipts')
+                    ->orWhereHas('purchaseOrder', function ($poQuery) {
+                        $poQuery->whereRaw('
+                            (SELECT SUM(received_quantity) FROM goods_receipts WHERE po_code = purchase_orders.po_code) <
+                            (SELECT SUM(order_quantity) FROM order_request_items WHERE order_code = purchase_orders.order_code)
+                        ');
+                    });
+            });
     }
 }

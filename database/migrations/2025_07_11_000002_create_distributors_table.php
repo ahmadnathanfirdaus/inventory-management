@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('distributor_name', 40);
             $table->string('address', 255);
             $table->string('phone', 13);
+            $table->string('status')->default('active');
             $table->timestamps();
         });
     }

@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class GoodsReceivedController extends Controller
 {
@@ -52,15 +53,15 @@ class GoodsReceivedController extends Controller
                 'exists:order_requests,order_code',
                 function ($attribute, $value, $fail) {
                     $orderRequest = OrderRequest::where('order_code', $value)->first();
-                    if ($orderRequest && $orderRequest->hasGoodsReceipts()) {
-                        $fail('Order ini sudah memiliki goods receipt. Tidak dapat diinput kembali.');
+                    if ($orderRequest && $orderRequest->isFullyReceived()) {
+                        $fail('Order ini sudah diterima secara lengkap. Tidak dapat diinput kembali.');
                     }
                 }
             ],
-            'items' => 'required|array',
-            'items.*.product_code' => 'required|exists:products,product_code',
-            'items.*.quantity_received' => 'required|integer|min:0',
-            'items.*.status' => 'required|in:complete,partial,damaged',
+            'items' => 'required|array|min:1',
+            'items.*.product_code' => 'required|string|exists:products,product_code',
+            'items.*.quantity_received' => 'required|integer|min:1',
+            'items.*.status' => 'required|string|in:complete,partial,damaged',
         ]);
 
         DB::beginTransaction();
@@ -75,6 +76,35 @@ class GoodsReceivedController extends Controller
             }
 
             foreach ($request->items as $item) {
+                // Skip items with 0 quantity
+                if ($item['quantity_received'] <= 0) {
+                    continue;
+                }
+
+                // Debug: Log the remaining quantities
+                $remainingQuantities = $order->getRemainingQuantities();
+                Log::info("Remaining quantities for order {$order->order_code}:", $remainingQuantities);
+                Log::info("Trying to receive {$item['quantity_received']} of product {$item['product_code']}");
+
+                // Check if this product can still be received
+                $remainingQuantities = $order->getRemainingQuantities();
+
+                if (isset($remainingQuantities[$item['product_code']])) {
+                    $productInfo = $remainingQuantities[$item['product_code']];
+                    $maxReceivable = $productInfo['remaining'];
+
+                    if ($maxReceivable <= 0) {
+                        throw new \Exception("Product {$item['product_code']} has already been fully received. Ordered: {$productInfo['ordered']}, Already received: {$productInfo['received']}");
+                    }
+
+                    if ($item['quantity_received'] > $maxReceivable) {
+                        throw new \Exception("Quantity received for product {$item['product_code']} exceeds remaining quantity. Ordered: {$productInfo['ordered']}, Already received: {$productInfo['received']}, Max receivable: {$maxReceivable}, Trying to receive: {$item['quantity_received']}");
+                    }
+                } else {
+                    // If product is not in remaining quantities, it means it's not in the order
+                    throw new \Exception("Product {$item['product_code']} is not in the original order.");
+                }
+
                 // Find the corresponding order item to get the estimated price
                 $orderItem = $order->orderRequestItems->where('product_code', $item['product_code'])->first();
 
@@ -164,10 +194,10 @@ class GoodsReceivedController extends Controller
             return response()->json(['error' => 'Order not found or not approved'], 404);
         }
 
-        // Check if order already has goods receipts
-        if ($order->hasGoodsReceipts()) {
+        // Check if order is fully received
+        if ($order->isFullyReceived()) {
             return response()->json([
-                'error' => 'Order ini sudah memiliki goods receipt dan tidak dapat diinput kembali.'
+                'error' => 'Order ini sudah diterima secara lengkap dan tidak dapat diinput kembali.'
             ], 422);
         }
 
@@ -182,6 +212,7 @@ class GoodsReceivedController extends Controller
             'order' => $order,
             'items' => $order->orderRequestItems,
             'purchase_order' => $order->purchaseOrder,
+            'remaining_quantities' => $order->getRemainingQuantities(),
         ]);
     }
 

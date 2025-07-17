@@ -201,78 +201,80 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            <!-- Sample empty state -->
-                            <tr>
-                                <td colspan="8" class="px-6 py-12 text-center">
-                                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                                    </svg>
-                                    <h3 class="mt-2 text-sm font-medium text-gray-900">No sales found</h3>
-                                    <p class="mt-1 text-sm text-gray-500">
-                                        @if(request()->hasAny(['search', 'start_date', 'end_date', 'cashier_id']))
-                                            Try adjusting your search or filter criteria.
-                                        @else
-                                            Start making sales to see transaction history.
-                                        @endif
-                                    </p>
-                                    @if(!request()->hasAny(['search', 'start_date', 'end_date', 'cashier_id']))
-                                        <div class="mt-6">
-                                            <a href="{{ route('pos.index') }}"
-                                               class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                                </svg>
-                                                Make First Sale
-                                            </a>
+                            @forelse($sales as $sale)
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {{ $sale->transaction_code }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <div>{{ $sale->purchase_date->format('M d, Y') }}</div>
+                                        <div class="text-xs text-gray-400">{{ $sale->purchase_date->format('H:i') }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ $sale->customer_name ?? 'Walk-in Customer' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ $sale->total_items }} item{{ $sale->total_items > 1 ? 's' : '' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        Rp {{ number_format($sale->total_amount, 0, ',', '.') }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $sale->payment_method === 'cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800' }}">
+                                            {{ ucfirst($sale->payment_method) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ $sale->cashier->name ?? 'Unknown' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <div class="flex space-x-2">
+                                            <a href="{{ route('sales.show', $sale) }}" class="text-blue-600 hover:text-blue-500">View</a>
+                                            @if(auth()->user()->canManageEmployees())
+                                                <a href="{{ route('sales.edit', $sale) }}" class="text-green-600 hover:text-green-500">Edit</a>
+                                            @endif
+                                            <a href="{{ route('sales.receipt', $sale) }}" class="text-indigo-600 hover:text-indigo-500">Print</a>
                                         </div>
-                                    @endif
-                                </td>
-                            </tr>
-
-                            <!-- Example row template for when sales exist -->
-                            <!--
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    #RCP001
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div>Jan 15, 2024</div>
-                                    <div class="text-xs text-gray-400">10:30 AM</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    Walk-in Customer
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    3 items
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    Rp 150,000
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        Cash
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    John Doe
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div class="flex space-x-2">
-                                        <a href="#" class="text-blue-600 hover:text-blue-500">View</a>
-                                        <a href="#" class="text-green-600 hover:text-green-500">Print</a>
-                                        <a href="#" class="text-red-600 hover:text-red-500">Void</a>
-                                    </div>
-                                </td>
-                            </tr>
-                            -->
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="8" class="px-6 py-12 text-center">
+                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                        </svg>
+                                        <h3 class="mt-2 text-sm font-medium text-gray-900">No sales found</h3>
+                                        <p class="mt-1 text-sm text-gray-500">
+                                            @if(request()->hasAny(['search', 'start_date', 'end_date', 'cashier_id']))
+                                                Try adjusting your search or filter criteria.
+                                            @else
+                                                Start making sales to see transaction history.
+                                            @endif
+                                        </p>
+                                        @if(!request()->hasAny(['search', 'start_date', 'end_date', 'cashier_id']))
+                                            <div class="mt-6">
+                                                <a href="{{ route('pos.index') }}"
+                                                   class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                                    </svg>
+                                                    Make First Sale
+                                                </a>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
 
-                <!-- Pagination will be here when there are sales -->
-                <!-- <div class="px-4 py-3 border-t border-gray-200">
-                    {{ $sales->appends(request()->query())->links() }}
-                </div> -->
+                <!-- Pagination -->
+                @if($sales->hasPages())
+                    <div class="px-4 py-3 border-t border-gray-200">
+                        {{ $sales->appends(request()->query())->links() }}
+                    </div>
+                @endif
             </div>
         </div>
     </div>

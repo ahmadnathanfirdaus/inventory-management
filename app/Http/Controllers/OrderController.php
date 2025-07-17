@@ -122,7 +122,12 @@ class OrderController extends Controller
         }
 
         $order->load('orderRequestItems');
-        return view('orders.edit', compact('order'));
+
+        // Get products and distributors for dropdowns
+        $products = Product::with('brand', 'distributor')->active()->orderBy('product_name')->get();
+        $distributors = Distributor::active()->orderBy('distributor_name')->get();
+
+        return view('orders.edit', compact('order', 'products', 'distributors'));
     }
 
     /**
@@ -135,10 +140,23 @@ class OrderController extends Controller
                 ->with('error', 'Order yang sudah diproses tidak dapat diedit.');
         }
 
+        // Validate the request
+        $request->validate([
+            'order_date' => 'required|date',
+            'description' => 'required|string|max:500',
+            'items' => 'required|array|min:1',
+            'items.*.product_code' => 'required|exists:products,product_code',
+            'items.*.distributor_code' => 'required|exists:distributors,distributor_code',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
         DB::beginTransaction();
         try {
+            // Update order information
             $order->update([
-                'description' => $request->description,
+                'order_date' => $request->order_date,
+                'notes' => $request->description,
             ]);
 
             // Delete existing items
@@ -146,18 +164,27 @@ class OrderController extends Controller
 
             // Create new items
             foreach ($request->items as $item) {
+                // Get product details to extract brand code
+                $product = Product::find($item['product_code']);
+
+                // Generate unique order item code
+                $orderItemCode = OrderRequestItem::generateNextCode();
+
                 OrderRequestItem::create([
+                    'order_item_code' => $orderItemCode,
                     'order_code' => $order->order_code,
                     'product_code' => $item['product_code'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $item['quantity'] * $item['unit_price'],
+                    'brand_code' => $product->brand_code,
+                    'distributor_code' => $item['distributor_code'],
+                    'order_quantity' => $item['quantity'],
+                    'estimated_price' => $item['unit_price'] * $item['quantity'],
+                    'notes' => $item['notes'] ?? null,
                 ]);
             }
 
             DB::commit();
 
-            return redirect()->route('orders.index')
+            return redirect()->route('orders.show', $order)
                 ->with('success', 'Order berhasil diperbarui!');
         } catch (\Exception $e) {
             DB::rollBack();

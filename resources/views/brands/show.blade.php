@@ -189,7 +189,7 @@
 
                                         <div class="text-right">
                                             <div class="text-sm font-medium text-gray-900">
-                                                Rp {{ number_format($product->sale_price, 0, ',', '.') }}
+                                                Rp {{ number_format($product->product_price, 0, ',', '.') }}
                                             </div>
                                             <div class="mt-1">
                                                 @if($product->stock_quantity <= 0)

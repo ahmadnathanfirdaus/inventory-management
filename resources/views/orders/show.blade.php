@@ -172,6 +172,13 @@
                     </h3>
                     <div class="mt-2 text-sm text-red-700">
                         <p>This order has been rejected and cannot be processed.</p>
+                        @if($order->rejection_reason)
+                        <p class="mt-2 font-medium">Rejection Reason:</p>
+                        <p class="mt-1 text-red-800">{{ $order->rejection_reason }}</p>
+                        @endif
+                        @if($order->manager)
+                        <p class="mt-2 text-xs text-red-600">Rejected by: {{ $order->manager->name }}</p>
+                        @endif
                     </div>
                 </div>
             </div>

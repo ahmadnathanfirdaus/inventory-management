@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\TransactionItem;
 use App\Models\Product;
 use App\Models\User;
@@ -344,6 +345,111 @@ class SaleController extends Controller
             DB::rollBack();
             return redirect()->back()
                 ->with('error', 'Gagal membatalkan transaksi: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show the form for editing a sale
+     */
+    public function edit(Sale $sale)
+    {
+        // Only managers and admins can edit sales
+        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
+            abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
+        }
+
+        $sale->load(['cashier', 'items.product']);
+
+        // Get all active products for the dropdown
+        $products = Product::with('brand')
+            ->active()
+            ->orderBy('product_name')
+            ->get();
+
+        return view('sales.edit', compact('sale', 'products'));
+    }
+
+    /**
+     * Update a sale
+     */
+    public function update(Request $request, Sale $sale)
+    {
+        // Only managers and admins can update sales
+        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
+            abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
+        }
+
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,product_code',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric|min:0',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            // First, revert stock from original transaction
+            foreach ($sale->items as $item) {
+                $product = Product::where('product_code', $item->product_code)->first();
+                if ($product) {
+                    $product->increment('stock_quantity', $item->quantity);
+                }
+            }
+
+            // Delete old items
+            $sale->items()->delete();
+
+            // Create new items and update stock
+            $totalAmount = 0;
+            $totalItems = 0;
+
+            foreach ($request->items as $itemData) {
+                $product = Product::where('product_code', $itemData['product_id'])->first();
+
+                if (!$product) {
+                    throw new \Exception("Product not found: {$itemData['product_id']}");
+                }
+
+                // Check stock availability
+                if ($product->stock_quantity < $itemData['quantity']) {
+                    throw new \Exception("Insufficient stock for product: {$product->product_name}");
+                }
+
+                // Create sale item
+                $saleItem = new SaleItem();
+                $saleItem->sale_id = $sale->id;
+                $saleItem->product_code = $product->product_code;
+                $saleItem->quantity = $itemData['quantity'];
+                $saleItem->unit_price = $itemData['price'];
+                $saleItem->sub_total = $itemData['quantity'] * $itemData['price'];
+                $saleItem->save();
+
+                // Update product stock
+                $product->decrement('stock_quantity', $itemData['quantity']);
+
+                // Add to totals
+                $totalAmount += $saleItem->sub_total;
+                $totalItems += $itemData['quantity'];
+            }
+
+            // Update sale totals
+            $sale->update([
+                'total_price' => $totalAmount,
+                'total_amount' => $totalAmount,
+                'total_items' => $totalItems,
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('sales.show', $sale)
+                ->with('success', 'Transaksi berhasil diperbarui.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Gagal memperbarui transaksi: ' . $e->getMessage())
+                ->withInput();
         }
     }
 

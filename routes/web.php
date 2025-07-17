@@ -29,6 +29,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Goods received management
     Route::resource('goods-received', GoodsReceivedController::class)->except(['edit', 'update']);
+    Route::get('goods-received/debug', function() {
+        return view('goods-received.debug');
+    })->name('goods-received.debug');
     Route::post('api/goods-received/get-order-details', [GoodsReceivedController::class, 'getOrderDetails'])
         ->name('goods-received.get-order-details');
     Route::get('api/goods-received/po-details', [GoodsReceivedController::class, 'getPODetails'])
@@ -114,6 +117,8 @@ Route::middleware(['auth', 'role:admin,manager,cashier'])->group(function () {
     Route::get('sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::post('sales', [SaleController::class, 'store'])->name('sales.store');
     Route::get('sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    Route::get('sales/{sale}/edit', [SaleController::class, 'edit'])->name('sales.edit');
+    Route::put('sales/{sale}', [SaleController::class, 'update'])->name('sales.update');
     Route::get('sales/{sale}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
     Route::post('sales/{sale}/print', [SaleController::class, 'printReceipt'])->name('sales.print');
     Route::post('sales/{sale}/void', [SaleController::class, 'voidSale'])->name('sales.void');

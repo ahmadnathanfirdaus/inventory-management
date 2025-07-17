@@ -19,6 +19,7 @@ class Distributor extends Model
         'distributor_name',
         'address',
         'phone',
+        'status',
     ];
 
     /**
@@ -35,6 +36,14 @@ class Distributor extends Model
     public function products()
     {
         return $this->hasMany(Product::class, 'distributor_code', 'distributor_code');
+    }
+
+    /**
+     * Scope a query to only include active distributors.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
     }
 
     /**
