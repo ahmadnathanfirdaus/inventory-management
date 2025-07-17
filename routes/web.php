@@ -114,6 +114,7 @@ Route::middleware(['auth', 'role:admin,manager,cashier'])->group(function () {
 
     // Sales management
     Route::get('sales', [SaleController::class, 'index'])->name('sales.index');
+    Route::get('sales/export', [SaleController::class, 'export'])->name('sales.export');
     Route::get('sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::post('sales', [SaleController::class, 'store'])->name('sales.store');
     Route::get('sales/{sale}', [SaleController::class, 'show'])->name('sales.show');

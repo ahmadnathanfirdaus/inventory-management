@@ -11,6 +11,8 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SaleController extends Controller
 {
@@ -466,5 +468,86 @@ class SaleController extends Controller
         $sale->load(['cashier', 'items.product']);
 
         return view('sales.receipt', compact('sale'));
+    }
+
+    /**
+     * Export sales data
+     */
+    public function export(Request $request)
+    {
+        $type = $request->get('type', 'daily');
+
+        $now = Carbon::now();
+
+        // Determine date range based on type
+        switch ($type) {
+            case 'daily':
+                $startDate = $now->copy()->startOfDay();
+                $endDate = $now->copy()->endOfDay();
+                $filename = 'laporan-penjualan-harian-' . $now->format('Y-m-d');
+                $title = 'Laporan Penjualan Harian - ' . $now->format('d F Y');
+                break;
+
+            case 'weekly':
+                $startDate = $now->copy()->startOfWeek();
+                $endDate = $now->copy()->endOfWeek();
+                $filename = 'laporan-penjualan-mingguan-' . $now->format('Y-W');
+                $title = 'Laporan Penjualan Mingguan - ' . $startDate->format('d F') . ' s/d ' . $endDate->format('d F Y');
+                break;
+
+            case 'monthly':
+                $startDate = $now->copy()->startOfMonth();
+                $endDate = $now->copy()->endOfMonth();
+                $filename = 'laporan-penjualan-bulanan-' . $now->format('Y-m');
+                $title = 'Laporan Penjualan Bulanan - ' . $now->format('F Y');
+                break;
+
+            default:
+                return redirect()->back()->with('error', 'Tipe export tidak valid');
+        }
+
+        // Get sales data
+        $query = Sale::with(['cashier', 'items.product'])
+            ->whereBetween('purchase_date', [$startDate, $endDate]);
+
+        // Filter by user role
+        /** @var User $user */
+        $user = Auth::user();
+        if ($user && $user->isCashier()) {
+            $query->where('user_code', $user->user_code);
+        }
+
+        $sales = $query->orderBy('purchase_date', 'desc')->get();
+
+        // Calculate summary
+        $summary = [
+            'total_sales' => $sales->sum('total_price'),
+            'total_transactions' => $sales->count(),
+            'total_items' => $sales->sum('total_quantity'),
+            'average_transaction' => $sales->count() > 0 ? $sales->sum('total_price') / $sales->count() : 0,
+            'period_start' => $startDate->format('d F Y'),
+            'period_end' => $endDate->format('d F Y'),
+            'generated_at' => $now->format('d F Y H:i:s'),
+            'generated_by' => $user->name,
+        ];
+
+        return $this->exportToPDF($sales, $summary, $title, $filename);
+    }
+
+    /**
+     * Export to PDF format
+     */
+    private function exportToPDF($sales, $summary, $title, $filename)
+    {
+        $data = [
+            'sales' => $sales,
+            'summary' => $summary,
+            'title' => $title
+        ];
+
+        $pdf = Pdf::loadView('sales.export.pdf', $data);
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->download($filename . '.pdf');
     }
 }

@@ -15,7 +15,46 @@
                     View all sales transactions and history
                 </p>
             </div>
-            <div class="mt-4 flex md:mt-0 md:ml-4">
+            <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+                <!-- Export Dropdown -->
+                <div class="relative inline-block text-left">
+                    <div>
+                        <button type="button" id="exportDropdown" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Export
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="exportMenu" class="hidden absolute right-0 z-10 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        <div class="py-1">
+                            <a href="{{ route('sales.export', ['type' => 'daily']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                Export Harian (PDF)
+                            </a>
+                            <hr class="my-1">
+                            <a href="{{ route('sales.export', ['type' => 'weekly']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                Export Mingguan (PDF)
+                            </a>
+                            <hr class="my-1">
+                            <a href="{{ route('sales.export', ['type' => 'monthly']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                Export Bulanan (PDF)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
                 <a href="{{ route('pos.index') }}"
                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,7 +133,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-sm font-medium text-gray-500 truncate">Today's Sales</dt>
-                                <dd class="text-lg font-medium text-gray-900">Rp 0</dd>
+                                <dd class="text-lg font-medium text-gray-900">Rp {{ number_format($todaySales, 0, ',', '.') }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -115,7 +154,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-sm font-medium text-gray-500 truncate">Today's Transactions</dt>
-                                <dd class="text-lg font-medium text-gray-900">0</dd>
+                                <dd class="text-lg font-medium text-gray-900">{{ number_format($todayTransactions) }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -136,7 +175,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-sm font-medium text-gray-500 truncate">Average Sale</dt>
-                                <dd class="text-lg font-medium text-gray-900">Rp 0</dd>
+                                <dd class="text-lg font-medium text-gray-900">Rp {{ number_format($avgTransaction, 0, ',', '.') }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -157,7 +196,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
-                                <dd class="text-lg font-medium text-gray-900">Rp 0</dd>
+                                <dd class="text-lg font-medium text-gray-900">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -279,4 +318,24 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const exportDropdown = document.getElementById('exportDropdown');
+    const exportMenu = document.getElementById('exportMenu');
+
+    exportDropdown.addEventListener('click', function(e) {
+        e.preventDefault();
+        exportMenu.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!exportDropdown.contains(e.target) && !exportMenu.contains(e.target)) {
+            exportMenu.classList.add('hidden');
+        }
+    });
+});
+</script>
+
 @endsection
