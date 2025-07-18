@@ -96,19 +96,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Orders created by this user
+     * Check if user can manage transactions (cashier or manager)
      */
-    public function orders()
+    public function canManageTransactions(): bool
     {
-        return $this->hasMany(Order::class, 'created_by');
-    }
-
-    /**
-     * Orders approved by this user
-     */
-    public function approvedOrders()
-    {
-        return $this->hasMany(Order::class, 'approved_by');
+        return $this->isCashier() || $this->isManager();
     }
 
     /**

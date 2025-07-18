@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
-use App\Models\SaleItem;
 use App\Models\TransactionItem;
 use App\Models\Product;
 use App\Models\User;
@@ -356,7 +355,7 @@ class SaleController extends Controller
     public function edit(Sale $sale)
     {
         // Only managers and admins can edit sales
-        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
+        if (!$this->getAuthenticatedUser()->canManageTransactions()) {
             abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
         }
 
@@ -377,7 +376,7 @@ class SaleController extends Controller
     public function update(Request $request, Sale $sale)
     {
         // Only managers and admins can update sales
-        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
+        if (!$this->getAuthenticatedUser()->canManageTransactions()) {
             abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
         }
 
@@ -419,27 +418,25 @@ class SaleController extends Controller
                 }
 
                 // Create sale item
-                $saleItem = new SaleItem();
-                $saleItem->sale_id = $sale->id;
-                $saleItem->product_code = $product->product_code;
-                $saleItem->quantity = $itemData['quantity'];
-                $saleItem->unit_price = $itemData['price'];
-                $saleItem->sub_total = $itemData['quantity'] * $itemData['price'];
-                $saleItem->save();
+                $transactionItem = new TransactionItem();
+                $transactionItem->transaction_code = $sale->transaction_code;
+                $transactionItem->product_code = $product->product_code;
+                $transactionItem->quantity = $itemData['quantity'];
+                $transactionItem->sub_total = $itemData['quantity'] * $itemData['price'];
+                $transactionItem->save();
 
                 // Update product stock
                 $product->decrement('stock_quantity', $itemData['quantity']);
 
                 // Add to totals
-                $totalAmount += $saleItem->sub_total;
+                $totalAmount += $transactionItem->sub_total;
                 $totalItems += $itemData['quantity'];
             }
 
             // Update sale totals
             $sale->update([
                 'total_price' => $totalAmount,
-                'total_amount' => $totalAmount,
-                'total_items' => $totalItems,
+                'total_quantity' => $totalItems,
             ]);
 
             DB::commit();

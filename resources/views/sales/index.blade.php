@@ -269,7 +269,7 @@
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div class="flex space-x-2">
                                             <a href="{{ route('sales.show', $sale) }}" class="text-blue-600 hover:text-blue-500">View</a>
-                                            @if(auth()->user()->canManageEmployees())
+                                            @if(auth()->user()->canManageTransactions())
                                                 <a href="{{ route('sales.edit', $sale) }}" class="text-green-600 hover:text-green-500">Edit</a>
                                             @endif
                                             <a href="{{ route('sales.receipt', $sale) }}" class="text-indigo-600 hover:text-indigo-500">Print</a>
