@@ -208,11 +208,40 @@ class GoodsReceivedController extends Controller
             ], 422);
         }
 
+        // Get remaining quantities and filter out fully received items
+        $remainingQuantities = $order->getRemainingQuantities();
+
+        // Filter items to only include those with remaining quantity > 0
+        $availableItems = $order->orderRequestItems->filter(function ($item) use ($remainingQuantities) {
+            $productCode = $item->product_code;
+            return isset($remainingQuantities[$productCode]) && $remainingQuantities[$productCode]['remaining'] > 0;
+        })->map(function ($item) use ($remainingQuantities) {
+            // Add remaining quantity data to each item
+            $productCode = $item->product_code;
+            $remainingData = $remainingQuantities[$productCode];
+
+            return [
+                'product_code' => $item->product_code,
+                'item_name' => $item->item_name,
+                'order_quantity' => $item->order_quantity,
+                'quantity_received' => $remainingData['received'],
+                'remaining_quantity' => $remainingData['remaining'],
+                'product' => $item->product,
+            ];
+        })->values();
+
+        // Check if there are any items left to receive
+        if ($availableItems->isEmpty()) {
+            return response()->json([
+                'error' => 'Semua barang dalam order ini sudah diterima secara lengkap.'
+            ], 422);
+        }
+
         return response()->json([
             'order' => $order,
-            'items' => $order->orderRequestItems,
+            'items' => $availableItems,
             'purchase_order' => $order->purchaseOrder,
-            'remaining_quantities' => $order->getRemainingQuantities(),
+            'remaining_quantities' => $remainingQuantities,
         ]);
     }
 
@@ -250,7 +279,12 @@ class GoodsReceivedController extends Controller
                 ->whereHas('purchaseOrder')
                 ->latest()
                 ->take(20)
-                ->get();
+                ->get()
+                ->filter(function ($order) {
+                    // Additional filter: only include orders that have items with remaining quantity > 0
+                    $remainingQuantities = $order->getRemainingQuantities();
+                    return collect($remainingQuantities)->where('remaining', '>', 0)->isNotEmpty();
+                });
 
             return response()->json([
                 'success' => true,
@@ -262,7 +296,7 @@ class GoodsReceivedController extends Controller
                         'po_code' => $order->purchaseOrder->po_code,
                         'po_number' => $order->purchaseOrder->po_number,
                     ];
-                })
+                })->values()
             ]);
 
         } catch (\Exception $e) {

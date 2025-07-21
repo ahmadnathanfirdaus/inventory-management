@@ -67,10 +67,6 @@
                             <span id="displayOrderCode" class="text-gray-900"></span>
                         </div>
                         <div>
-                            <span class="font-medium text-gray-700">Status:</span>
-                            <span id="displayStatus" class="text-gray-900"></span>
-                        </div>
-                        <div>
                             <span class="font-medium text-gray-700">Admin:</span>
                             <span id="displayAdmin" class="text-gray-900"></span>
                         </div>
@@ -83,14 +79,22 @@
 
                 <!-- Items Table -->
                 <div class="mb-6">
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">Item yang Diterima</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">Item yang Belum Diterima Lengkap</h3>
+                        <div class="text-sm text-gray-600">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Hanya menampilkan barang yang belum diterima secara lengkap
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Order</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Diterima</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sudah Diterima</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sisa yang Belum Diterima</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Diterima Kali Ini</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 </tr>
                             </thead>
@@ -99,6 +103,19 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+                    <h4 class="text-sm font-medium text-blue-800 mb-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Ringkasan Penerimaan
+                    </h4>
+                    <p class="text-sm text-blue-700">
+                        Form ini hanya menampilkan barang yang belum diterima secara lengkap.
+                        Jumlah default yang akan diterima adalah sisa dari yang belum diterima.
+                        Anda dapat mengubah jumlah sesuai dengan barang yang benar-benar diterima.
+                    </p>
                 </div>
 
                 <!-- Submit Buttons -->
@@ -206,15 +223,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Check if there are any items to display
+            if (!data.items || data.items.length === 0) {
+                showError('Tidak ada barang yang dapat diterima dari order ini. Semua barang mungkin sudah diterima secara lengkap.');
+                return;
+            }
+
             // Populate order details
             document.getElementById('displayOrderCode').textContent = data.order.order_code;
-            document.getElementById('displayStatus').textContent = data.order.status;
             document.getElementById('displayAdmin').textContent = data.order.admin?.name || 'N/A';
             document.getElementById('displayDescription').textContent = data.order.notes || 'No description';
 
             // Populate items table
             const tbody = document.getElementById('itemsTableBody');
             tbody.innerHTML = '';
+
+            if (data.items.length === 0) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Tidak ada barang yang dapat diterima. Semua barang dalam order ini sudah diterima secara lengkap.
+                    </td>
+                `;
+                tbody.appendChild(emptyRow);
+                // Hide the submit buttons since there's nothing to receive
+                document.querySelector('.flex.justify-end.space-x-4').style.display = 'none';
+                return;
+            }
 
             data.items.forEach((item, index) => {
                 const row = document.createElement('tr');
@@ -224,15 +260,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         <input type="hidden" name="items[${index}][product_code]" value="${item.product_code}">
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${item.quantity || item.order_quantity || 'N/A'}
+                        ${item.order_quantity || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        ${item.quantity_received || 0}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            ${item.remaining_quantity || 0} tersisa
+                        </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <input type="number"
                                name="items[${index}][quantity_received]"
                                class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                               min="0"
-                               max="${item.quantity || item.order_quantity}"
-                               value="${item.quantity || item.order_quantity}"
+                               min="1"
+                               max="${item.remaining_quantity || 0}"
+                               value="${item.remaining_quantity || 0}"
                                required>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -246,6 +290,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 tbody.appendChild(row);
             });
+
+            // Show the submit buttons since there are items to receive
+            document.querySelector('.flex.justify-end.space-x-4').style.display = 'flex';
 
             // Show order details section
             orderDetails.classList.remove('hidden');
