@@ -96,14 +96,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user can manage transactions (cashier or manager)
-     */
-    public function canManageTransactions(): bool
-    {
-        return $this->isCashier() || $this->isManager();
-    }
-
-    /**
      * Goods received by this user
      */
     public function goodsReceived()

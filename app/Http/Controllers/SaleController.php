@@ -355,7 +355,7 @@ class SaleController extends Controller
     public function edit(Sale $sale)
     {
         // Only managers and admins can edit sales
-        if (!$this->getAuthenticatedUser()->canManageTransactions()) {
+        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
             abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
         }
 
@@ -376,7 +376,7 @@ class SaleController extends Controller
     public function update(Request $request, Sale $sale)
     {
         // Only managers and admins can update sales
-        if (!$this->getAuthenticatedUser()->canManageTransactions()) {
+        if (!$this->getAuthenticatedUser()->canManageEmployees()) {
             abort(403, 'Anda tidak memiliki izin untuk mengedit transaksi.');
         }
 
