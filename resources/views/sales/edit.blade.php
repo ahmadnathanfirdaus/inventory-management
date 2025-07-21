@@ -148,7 +148,7 @@
                                             <input type="number" name="items[{{ $index }}][price]" class="item-price w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" step="1000" min="0" value="{{ $item->unit_price }}" readonly>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="number" name="items[{{ $index }}][quantity]" class="item-quantity w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1" value="{{ $item->quantity }}" required>
+                                            <input type="number" name="items[{{ $index }}][quantity]" class="item-quantity w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1" max="{{ $item->quantity }}" value="{{ $item->quantity }}" required>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <input type="number" name="items[{{ $index }}][total]" class="item-total w-full rounded-md border-gray-300 shadow-sm bg-gray-50" value="{{ $item->sub_total }}" readonly>
